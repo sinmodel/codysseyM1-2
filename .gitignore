@@ -1,0 +1,12 @@
+﻿.venv/
+__pycache__/
+*.py[cod]
+.env
+.env.*
+!.env.example
+service-account*.json
+firebase-adminsdk*.json
+.firebase/
+.DS_Store
+
+ai-stock-helper-27fb1-firebase-adminsdk-fbsvc-25cfe6392c.json
