@@ -6,7 +6,7 @@
 
 
 
-\## 1. 중요 안내
+## 1. 중요 안내
 
 
 
@@ -15,7 +15,7 @@
 
 
 
-\## 2. Python 환경 확인
+## 2. Python 환경 확인
 
 
 
@@ -35,7 +35,7 @@ Python 3.10 이상을 권장합니다.
 
 
 
-\## 3. 가상환경 및 패키지 설치
+## 3. 가상환경 및 패키지 설치
 
 
 
@@ -67,7 +67,7 @@ python -m pip install -r requirements.txt
 
 
 
-\## 4. 서버 실행
+## 4. 서버 실행
 
 
 
@@ -87,7 +87,7 @@ python -m uvicorn app.main:app --reload
 
 
 
-\## 5. 브라우저에서 확인
+## 5. 브라우저에서 확인
 
 
 
@@ -103,7 +103,7 @@ python -m uvicorn app.main:app --reload
 
 
 
-\## 6. 현재 구현된 기능
+## 6. 현재 구현된 기능
 
 
 
@@ -123,7 +123,7 @@ python -m uvicorn app.main:app --reload
 
 
 
-\## 7. API 목록
+## 7. API 목록
 
 
 
@@ -141,7 +141,7 @@ python -m uvicorn app.main:app --reload
 
 
 
-\## 8. 현재 한계와 향후 작업
+## 8. 현재 한계와 향후 작업
 
 
 
@@ -158,7 +158,7 @@ python -m uvicorn app.main:app --reload
 
 
 
-\## 9. 보안 주의사항
+## 9. 보안 주의사항
 
 
 
