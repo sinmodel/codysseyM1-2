@@ -1,3 +1,4 @@
+
 import os
 from pathlib import Path
 
@@ -9,10 +10,22 @@ load_dotenv()
 
 PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID")
 
-# 프로젝트 루트에 있는 서비스 계정 JSON 파일
+# 프로젝트 루트 경로
 BASE_DIR = Path(__file__).resolve().parent.parent
-CREDENTIALS_PATH = BASE_DIR / (
+
+# Firebase 서비스 계정 JSON 파일 이름
+CREDENTIALS_FILENAME = (
     "ai-stock-helper-27fb1-firebase-adminsdk-fbsvc-25cfe6392c.json"
+)
+
+# Render Secret Files 경로와 로컬 경로
+RENDER_SECRET_PATH = Path("/etc/secrets") / CREDENTIALS_FILENAME
+LOCAL_CREDENTIALS_PATH = BASE_DIR / CREDENTIALS_FILENAME
+
+CREDENTIALS_PATH = (
+    RENDER_SECRET_PATH
+    if RENDER_SECRET_PATH.exists()
+    else LOCAL_CREDENTIALS_PATH
 )
 
 

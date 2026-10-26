@@ -1,5 +1,7 @@
-import json
+﻿import json
 import os
+import secrets
+import threading
 from datetime import datetime, timezone
 
 from openai import OpenAI
@@ -7,7 +9,7 @@ from pathlib import Path
 from uuid import uuid4
 from typing import Literal
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -116,10 +118,11 @@ def get_data(symbol: str | None = None, limit: int = 200):
             continue
 
         rows.append(row)
-
     rows.sort(key=lambda item: item["date"])
 
-    selected = rows[:limit]
+    # 최신 데이터부터 limit개를 선택한 뒤, 차트 표시를 위해 날짜순으로 정렬
+    selected = rows[-limit:]
+    
     return {
         "count": len(selected),
         "items": selected,
@@ -289,7 +292,8 @@ def chat(request: ChatRequest):
         created_at = now
 
     # 기존 데이터 요약을 AI의 시스템 프롬프트에 주입한다.
-    summary = get_summary()
+    # 기존 데이터 요약을 AI에게 전달할 준비를 한다.
+    summary = get_summary(symbol="005930")
 
     system_prompt = (
         "너는 주식 시계열 데이터를 설명하는 교육용 AI 비서다. "
@@ -404,3 +408,66 @@ def delete_conversation(conversation_id: str):
 
     doc_ref.delete()
     return {"deleted": True, "id": conversation_id}
+
+
+# 로컬 서버 종료를 위한 보안 토큰을 생성한다.
+_shutdown_token = secrets.token_urlsafe(32)
+_uvicorn_server = None
+
+
+@app.post("/api/shutdown-token")
+def get_shutdown_token(request: Request):
+    host = request.headers.get("host", "")
+    origin = request.headers.get("origin", "")
+    expected_origin = f"http://{host}"
+
+    if host not in {"127.0.0.1:8000", "localhost:8000",
+                    "127.0.0.1:8001", "localhost:8001"}:
+        raise HTTPException(status_code=403, detail="Local access only")
+    if origin != expected_origin:
+        raise HTTPException(status_code=403, detail="Invalid origin")
+
+    return {"token": _shutdown_token}
+
+
+@app.post("/api/shutdown")
+def shutdown_server(request: Request):
+    global _uvicorn_server
+
+    host = request.headers.get("host", "")
+    origin = request.headers.get("origin", "")
+    expected_origin = f"http://{host}"
+
+    if host not in {"127.0.0.1:8000", "localhost:8000",
+                    "127.0.0.1:8001", "localhost:8001"}:
+        raise HTTPException(status_code=403, detail="Local access only")
+    if origin != expected_origin:
+        raise HTTPException(status_code=403, detail="Invalid origin")
+    if request.headers.get("x-shutdown-token") != _shutdown_token:
+        raise HTTPException(status_code=403, detail="Invalid shutdown token")
+    if _uvicorn_server is None:
+        raise HTTPException(status_code=503, detail="Managed server is not running")
+
+    threading.Timer(0.5, lambda: setattr(_uvicorn_server, "should_exit", True)).start()
+    return {"status": "shutdown_requested", "message": "Server shutdown requested"}
+
+if __name__ == "__main__":
+    import sys
+    import os
+    import uvicorn
+    import webbrowser
+    from threading import Timer
+    from pathlib import Path
+
+    project_root = str(Path(__file__).resolve().parent.parent)
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+
+    port = int(os.getenv("PORT", "8000"))
+    url = f"http://127.0.0.1:{port}"
+    config = uvicorn.Config(app, host="127.0.0.1", port=port)
+    server = uvicorn.Server(config)
+
+    _uvicorn_server = server
+    Timer(1.5, lambda: webbrowser.open(url)).start()
+    server.run()

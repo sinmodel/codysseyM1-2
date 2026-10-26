@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="ko">
 
 <head>
@@ -188,6 +188,76 @@
       opacity: .55;
       cursor: not-allowed
     }
+
+    /* 반응형 화면과 접기/펼치기 */
+    * { box-sizing: border-box; }
+    img, canvas { max-width: 100%; }
+    body { padding: clamp(10px, 2.5vw, 20px); }
+    .card { min-width: 0; }
+    .card h2 { line-height: 1.35; }
+    .collapsible-card { padding: 0; overflow: hidden; }
+    .collapsible-card > summary {
+      cursor: pointer;
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 18px;
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+    .collapsible-card > summary::-webkit-details-marker { display: none; }
+    .collapsible-card > summary::after {
+      content: "＋";
+      flex: 0 0 auto;
+      color: #173d7a;
+      font-size: 1.25rem;
+    }
+    .collapsible-card[open] > summary::after { content: "−"; }
+    .collapsible-card > summary:focus-visible,
+    button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible {
+      outline: 3px solid #93c5fd;
+      outline-offset: 2px;
+    }
+    .collapsible-content { padding: 0 18px 18px; }
+    .collapsible-content > :first-child { margin-top: 0; }
+    button, .env-option { min-height: 44px; }
+    textarea { font: inherit; max-width: 100%; }
+    .chart-container { height: clamp(240px, 45vw, 360px); }
+    #chatMessages { overflow-wrap: anywhere; }
+    @media (max-width: 600px) {
+      body { padding: 8px; }
+      main { width: 100%; }
+      .card { border-radius: 12px; margin: 10px 0; padding: 14px; }
+      .collapsible-card { padding: 0; }
+      .collapsible-card > summary { padding: 15px; font-size: 1.03rem; }
+      .collapsible-content { padding: 0 14px 14px; }
+      .env-grid, .metrics { grid-template-columns: minmax(0, 1fr); }
+      .period-buttons button { flex: 1 1 auto; }
+
+      /* 주가 그래프와 분석 결과 영역 */
+      .chart-container {
+        height: auto;
+        min-height: 260px;
+        overflow: visible;
+      }
+
+      /* 그래프 크기 */
+     #priceChart {
+        display: block;
+        width: 100%;
+        max-width: 100%;
+        max-height: 260px;
+     }
+
+      button { max-width: 100%; }
+      #sendChat, #saveEnvironment, #runDiagnostics, #retryButton, #refresh {
+        width: 100%;
+      }
+      pre { font-size: .82rem; }
+    }
+
   </style>
 
   <!-- 선 그래프 라이브러리 -->
@@ -197,6 +267,13 @@
 <body>
   <main>
     <h1>AI 주식 도우미</h1>
+    <p>
+      <button type="button" id="shutdownButton" style="background:#b91c1c;color:white;">
+        ???? ??
+      </button>
+      <span id="shutdownStatus" role="status" aria-live="polite"></span>
+    </p>
+
     <p>초보 투자자를 위한 데이터 분석 프로젝트</p>
 
     <p class="note">
@@ -204,8 +281,10 @@
     </p>
 
 
-    <section class="card">
-      <h2>메인 메뉴 · 실행 환경 선택</h2>
+    <details class="card collapsible-card">
+      <summary>⚙️ 실행 환경 설정</summary>
+      <div class="collapsible-content">
+<h2>메인 메뉴 · 실행 환경 선택</h2>
       <p>먼저 테스트용으로 기능을 확인한 뒤 실제용 배포 서버에 연결하세요. 기존 그래프 기능은 유지됩니다.</p>
       <div class="env-grid">
         <button type="button" id="testModeBtn" class="env-option active">🧪 테스트용<small>내 컴퓨터의 FastAPI 서버와 교육용 시뮬레이션 데이터를
@@ -219,9 +298,12 @@
       <p style="font-size:.9rem;color:#64748b">주소는 이 브라우저에 저장됩니다. 배포 주소가 아직 없다면 비워 두세요.</p>
       <div id="environmentStatus" class="status-box">현재 환경: 테스트용 · http://127.0.0.1:8000</div>
       <p><button type="button" id="saveEnvironment">환경 설정 저장 및 연결 확인</button></p>
-    </section>
-    <section class="card">
-      <h2>노트북·프로젝트 상태 점검</h2>
+      </div>
+    </details>
+    <details class="card collapsible-card">
+      <summary>🧰 프로젝트 상태 점검</summary>
+      <div class="collapsible-content">
+<h2>노트북·프로젝트 상태 점검</h2>
       <p>웹페이지에서 확인할 수 있는 항목은 자동 검사하고, 운영체제 권한이 필요한 항목은 체크리스트로 안내합니다. 이 페이지는 컴퓨터 설정을 몰래 변경하지 않습니다.</p>
       <div class="step-list">
         <label class="step-item"><input type="checkbox" checked disabled><span><strong>1. 브라우저 실행</strong><br><small>현재
@@ -237,13 +319,17 @@
       </div>
       <p><button type="button" id="runDiagnostics">자동 점검 실행</button></p>
       <div id="diagnosticResult" class="status-box" role="status" aria-live="polite">점검 전입니다. 자동 점검 실행을 누르세요.</div>
-    </section>
-    <section class="card">
-      <h2>오류 안내 및 다시 실행하기</h2>
+      </div>
+    </details>
+    <details class="card collapsible-card">
+      <summary>🩺 오류 안내 및 다시 실행</summary>
+      <div class="collapsible-content">
+<h2>오류 안내 및 다시 실행하기</h2>
       <p>오류가 발생하면 확인된 상태 코드와 다음 조치를 표시합니다. 재실행은 데이터 조회를 다시 시도합니다.</p>
       <div id="errorDetails" class="status-box" role="alert" aria-live="assertive">현재 오류가 없습니다.</div>
       <button type="button" id="retryButton">↻ 다시 실행하기</button>
-    </section>
+      </div>
+    </details>
 
     <section class="card">
       <h2>데이터 요약</h2>
@@ -266,8 +352,10 @@
       </div>
     </section>
 
-    <section class="card">
-      <h2>API 응답</h2>
+    <details class="card collapsible-card">
+      <summary>🧾 API 응답 원문</summary>
+      <div class="collapsible-content">
+<h2>API 응답</h2>
       <pre id="raw">아직 불러오지 않았습니다.</pre>
       <p>
         <button id="refresh">데이터 다시 불러오기</button>
@@ -277,24 +365,29 @@
           Swagger API 문서 열기
         </a>
       </p>
-    </section>
+      </div>
+    </details>
 
     <!-- AI 채팅 기능 -->
-    <section class="card" id="chatSection">
-      <h2>AI 주식 도우미에게 질문하기</h2>
-      <p>저장된 주식 데이터를 바탕으로 궁금한 내용을 질문해 보세요.</p>
-
-      <div id="chatMessages" role="log" aria-live="polite"
-        style="min-height:120px; max-height:350px; overflow-y:auto; padding:12px; border:1px solid #ddd; border-radius:8px; margin-bottom:12px;">
-        <p>안녕하세요! 주식 데이터에 관해 무엇이 궁금하신가요?</p>
-      </div>
-
-      <label class="field-label" for="chatInput">질문</label>
-      <textarea id="chatInput" rows="3" maxlength="4000" placeholder="예: 저장된 주식 데이터의 평균 가격을 알려 줘."
+       <section class="card" id="chatSection">
+     <h2>AI 주식 도우미에게 질문하기</h2>
+      <h3 style="margin-top:12px; margin-bottom:8px; line-height:1.5; height:auto; overflow:visible;">
+             사용자의 질문
+       </h3>
+      <label class="field-label" for="chatInput" style="display:none;">사용자의 질문</label>
+      <textarea id="chatInput" rows="3" maxlength="4000"
+        placeholder="예: 저장된 주식 데이터의 평균 가격을 알려 줘."
         style="width:100%; box-sizing:border-box; padding:12px; margin:8px 0;"></textarea>
 
-      <button type="button" id="sendChat">질문 보내기</button>
+      <button type="button" id="sendChat" aria-describedby="chatStatus">질문 보내기</button>
       <p id="chatStatus" role="status" aria-live="polite"></p>
+
+      <!-- 2. 주식 도우미 AI의 답변 -->
+      <h3>주식 도우미 AI의 답변</h3>
+      <div id="chatMessages" role="log" aria-live="polite"
+        style="min-height:120px; max-height:350px; overflow-y:auto; padding:12px; border:1px solid #ddd; border-radius:8px; margin-top:12px;">
+        <p>안녕하세요! 궁금한 내용을 질문해 주세요.</p>
+      </div>
     </section>
 
   </main>
@@ -504,7 +597,9 @@
 
             trendAnalysis.innerHTML = `
     <div style="margin-top: 16px; padding: 16px; background: #f8fafc; border-radius: 10px;">
-      <h3 style="margin: 0 0 10px; color: ${trendColor};">📊 주가 추세 분석</h3>
+      <h3 style="margin: 0 0 10px; color: ${trendColor}; line-height: 1.5; overflow-wrap: anywhere;">
+                    📊 주가 추세 분석
+         </h3>
       <p style="margin: 6px 0;">${trendText}</p>
       <p style="margin: 6px 0;">시작 종가: ${firstClose.toLocaleString("ko-KR")}원</p>
       <p style="margin: 6px 0;">마지막 종가: ${lastClose.toLocaleString("ko-KR")}원</p>
@@ -679,7 +774,8 @@
       }
 
       sendChatButton.disabled = true;
-      chatStatus.textContent = "AI가 답변을 작성하고 있어...";
+      sendChatButton.textContent = "답변 생성 중...";
+      chatStatus.textContent = "진행 중: AI가 답변을 작성하고 있어...";
       addChatMessage("user", message);
       chatInput.value = "";
 
@@ -718,6 +814,7 @@
         );
       } finally {
         sendChatButton.disabled = false;
+        sendChatButton.textContent = "질문 보내기";
         chatInput.focus();
       }
     }
@@ -728,6 +825,75 @@
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault();
         sendChatMessage();
+      }
+    });
+
+
+    const shutdownButton = document.getElementById("shutdownButton");
+    const shutdownStatus = document.getElementById("shutdownStatus");
+    let isShuttingDown = false;
+
+    shutdownButton.addEventListener("click", async () => {
+      if (isShuttingDown) return;
+
+      if (currentMode !== "test" || getApiBase() !== TEST_API_BASE) {
+        shutdownStatus.textContent = "Local test mode only.";
+        return;
+      }
+
+      if (!window.confirm("Shut down the local AI Stock Helper server?")) return;
+
+      isShuttingDown = true;
+      shutdownButton.disabled = true;
+      shutdownStatus.textContent = "Requesting server shutdown...";
+
+      try {
+        const tokenResponse = await fetch(`${TEST_API_BASE}/api/shutdown-token`, {
+          method: "POST",
+          cache: "no-store"
+        });
+
+        if (!tokenResponse.ok) {
+          throw new Error(`Token request failed: HTTP ${tokenResponse.status}`);
+        }
+
+        const tokenData = await tokenResponse.json();
+        const shutdownResponse = await fetch(`${TEST_API_BASE}/api/shutdown`, {
+          method: "POST",
+          headers: { "X-Shutdown-Token": tokenData.token }
+        });
+
+        if (!shutdownResponse.ok) {
+          throw new Error(`Shutdown request failed: HTTP ${shutdownResponse.status}`);
+        }
+
+        shutdownStatus.textContent = "Waiting for server to stop...";
+
+        let stopped = false;
+        for (let attempt = 0; attempt < 12; attempt++) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          try {
+            const response = await fetch(`${TEST_API_BASE}/api/health`, {
+              cache: "no-store",
+              signal: AbortSignal.timeout(700)
+            });
+            if (!response.ok) continue;
+          } catch {
+            stopped = true;
+            break;
+          }
+        }
+
+        if (stopped) {
+          shutdownStatus.textContent = "Server connection closed. You may close this tab.";
+          window.close();
+        } else {
+          shutdownStatus.textContent = "Shutdown requested; server stop not yet confirmed.";
+        }
+      } catch (error) {
+        shutdownStatus.textContent = `Shutdown failed: ${error.message}`;
+        shutdownButton.disabled = false;
+        isShuttingDown = false;
       }
     });
 
