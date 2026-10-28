@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="ko">
 
 <head>
@@ -269,7 +269,7 @@
     <h1>AI 주식 도우미</h1>
     <p>
       <button type="button" id="shutdownButton" style="background:#b91c1c;color:white;">
-        ???? ??
+        종료
       </button>
       <span id="shutdownStatus" role="status" aria-live="polite"></span>
     </p>
@@ -289,9 +289,16 @@
       <div class="env-grid">
         <button type="button" id="testModeBtn" class="env-option active">🧪 테스트용<small>내 컴퓨터의 FastAPI 서버와 교육용 시뮬레이션 데이터를
             사용합니다.</small></button>
-        <button type="button" id="liveModeBtn" class="env-option">🌐 실제용<small>배포된 HTTPS 백엔드 주소를 사용합니다. 실제 주가를 의미하지는
-            않습니다.</small></button>
-      </div>
+        <button type="button" id="liveModeBtn" class="env-option" disabled title="앞으로 버전 업 예정">🌐 실제용<small>앞으로 버전 업을 하도록 하겠습니다.</small></button>  
+      </div>  
+        <p style="margin-top: 12px;">
+          <a href="https://codysseym1-2-qwn4.onrender.com/docs"
+            target="_blank"
+            rel="noopener noreferrer"
+            style="display:inline-block; padding:10px 16px; background:#2563eb; color:white; border-radius:8px; text-decoration:none;">
+            📘 API 문서 (Swagger UI) 열기
+          </a>
+        </p> 
       <label class="field-label" for="liveApiUrl">실제용 백엔드 주소</label>
       <input id="liveApiUrl" class="url-input" type="url" placeholder="https://your-api-service.example.com"
         autocomplete="url">

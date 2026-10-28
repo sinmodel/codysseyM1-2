@@ -7,6 +7,10 @@ from datetime import datetime, timezone
 from openai import OpenAI
 from pathlib import Path
 from uuid import uuid4
+
+# 로컬 테스트 모드: 대화 기록은 서버 실행 중에만 메모리에 보관합니다.
+conversations: dict[str, dict] = {}
+
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request
@@ -87,9 +91,10 @@ def seed_initial_data(db):
 
 @app.on_event("startup")
 def initialize_database():
-    """서버 시작 시 Firestore를 확인하고 초기 데이터를 준비합니다."""
-    db = get_db()
-    seed_initial_data(db)
+    """로컬 테스트 모드에서는 CSV 데이터만 확인하고 Firestore에 접속하지 않습니다."""
+    rows = load_stock_data()
+    if not rows:
+        raise RuntimeError("삼성전자 과거 주가 CSV에 데이터가 없습니다.")
 
 
 @app.get("/")
@@ -100,128 +105,99 @@ def root():
 
 @app.get("/api/data")
 def get_data(symbol: str | None = None, limit: int = 200):
+    """로컬 CSV에서 과거 주가를 조회합니다."""
     if limit < 1 or limit > 1000:
         raise HTTPException(
             status_code=400,
             detail="limit은 1~1000 사이여야 합니다.",
         )
 
-    db = get_db()
-    documents = db.collection("data").stream()
+    rows = load_stock_data()
 
-    rows = []
-    for document in documents:
-        row = document.to_dict()
-        row["id"] = document.id
+    if symbol:
+        rows = [
+            row for row in rows
+            if row.get("symbol", "").upper() == symbol.upper()
+        ]
 
-        if symbol and row.get("symbol", "").upper() != symbol.upper():
-            continue
-
-        rows.append(row)
     rows.sort(key=lambda item: item["date"])
-
-    # 최신 데이터부터 limit개를 선택한 뒤, 차트 표시를 위해 날짜순으로 정렬
     selected = rows[-limit:]
-    
+
     return {
         "count": len(selected),
-        "items": selected,
+        "items": [
+            {
+                **row,
+                "id": f"{row['symbol']}-{row['date']}",
+            }
+            for row in selected
+        ],
     }
 
 
-@app.post("/api/data", status_code=201)
+@app.post("/api/data", status_code=405)
 def create_data(item: DataCreate):
-    db = get_db()
-
-    row = item.model_dump()
-    doc_ref = db.collection("data").document(str(uuid4()))
-    doc_ref.set(row)
-
-    return {
-        **row,
-        "id": doc_ref.id,
-    }
+    """로컬 CSV 테스트 모드에서는 데이터 추가를 허용하지 않습니다."""
+    raise HTTPException(
+        status_code=405,
+        detail="로컬 테스트 모드에서는 데이터 추가를 지원하지 않습니다.",
+    )
 
 
-@app.put("/api/data/{item_id}")
+@app.put("/api/data/{item_id}", status_code=405)
 def update_data(item_id: str, item: DataCreate):
-    db = get_db()
-    doc_ref = db.collection("data").document(item_id)
-
-    if not doc_ref.get().exists:
-        raise HTTPException(
-            status_code=404,
-            detail="해당 ID의 데이터가 없습니다.",
-        )
-
-    row = item.model_dump()
-    doc_ref.set(row)
-
-    return {
-        **row,
-        "id": item_id,
-    }
+    """로컬 CSV 테스트 모드에서는 데이터 수정을 허용하지 않습니다."""
+    raise HTTPException(
+        status_code=405,
+        detail="로컬 테스트 모드에서는 데이터 수정을 지원하지 않습니다.",
+    )
 
 
-@app.delete("/api/data/{item_id}")
+@app.delete("/api/data/{item_id}", status_code=405)
 def delete_data(item_id: str):
-    db = get_db()
-    doc_ref = db.collection("data").document(item_id)
-    snapshot = doc_ref.get()
+    """로컬 CSV 테스트 모드에서는 데이터 삭제를 허용하지 않습니다."""
+    raise HTTPException(
+        status_code=405,
+        detail="로컬 테스트 모드에서는 데이터 삭제를 지원하지 않습니다.",
+    )
 
-    if not snapshot.exists:
-        raise HTTPException(
-            status_code=404,
-            detail="해당 ID의 데이터가 없습니다.",
-        )
-
-    removed = snapshot.to_dict()
-    doc_ref.delete()
-
-    return {
-        "deleted": True,
-        "item": {
-            **removed,
-            "id": item_id,
-        },
-    }
 
 
 @app.get("/api/data/summary")
 def get_summary(symbol: str | None = None):
-    db = get_db()
-    documents = db.collection("data").stream()
+    """로컬 CSV의 과거 주가를 요약합니다."""
+    rows = load_stock_data()
 
-    rows = []
-    for document in documents:
-        row = document.to_dict()
-
-        if symbol and row.get("symbol", "").upper() != symbol.upper():
-            continue
-
-        rows.append(row)
+    if symbol:
+        rows = [
+            row for row in rows
+            if row.get("symbol", "").upper() == symbol.upper()
+        ]
 
     return summarize_stock_data(rows)
 
 
 @app.get("/api/health")
 def health_check():
+    """로컬 CSV 테스트 모드의 상태를 확인합니다."""
     try:
-        db = get_db()
-        # 컬렉션에 문서가 있는지 확인하여 연결을 점검합니다.
-        next(db.collection("data").limit(1).stream(), None)
-
+        rows = load_stock_data()
         return {
             "status": "ok",
-            "database": "firestore",
+            "database": "local_csv",
+            "data_source": (
+                rows[0].get("data_type", "UNKNOWN")
+                if rows
+                else None
+            ),
+            "count": len(rows),
         }
-    except HTTPException:
-        raise
     except Exception as exc:
         raise HTTPException(
             status_code=503,
-            detail="Firestore 상태 확인에 실패했습니다.",
+            detail="로컬 CSV 데이터 확인에 실패했습니다.",
         ) from exc
+
 
 def utc_now():
     return datetime.now(timezone.utc).isoformat()
@@ -229,7 +205,7 @@ def utc_now():
 
 @app.post("/api/conversations", status_code=201)
 def create_conversation(item: ConversationCreate):
-    db = get_db()
+    """대화를 로컬 메모리에 생성합니다."""
     messages = [message.model_dump() for message in item.messages]
 
     first_user_message = next(
@@ -238,22 +214,19 @@ def create_conversation(item: ConversationCreate):
     )
     title = item.title or first_user_message[:60]
     now = utc_now()
+    conversation_id = str(uuid4())
 
-    doc_ref = db.collection("conversations").document(str(uuid4()))
-    doc_ref.set({
-        "title": title,
-        "messages": messages,
-        "created_at": now,
-        "updated_at": now,
-    })
-
-    return {
-        "id": doc_ref.id,
+    conversation = {
+        "id": conversation_id,
         "title": title,
         "messages": messages,
         "created_at": now,
         "updated_at": now,
     }
+    conversations[conversation_id] = conversation
+
+    return conversation
+
 
 @app.post("/api/chat")
 def chat(request: ChatRequest):
@@ -265,41 +238,39 @@ def chat(request: ChatRequest):
             detail="OPENAI_API_KEY 환경 변수를 설정해 주세요.",
         )
 
-    db = get_db()
-    collection = db.collection("conversations")
-
     conversation_id = request.conversation_id
     now = utc_now()
 
     if conversation_id:
-        doc_ref = collection.document(conversation_id)
-        snapshot = doc_ref.get()
+        conversation = conversations.get(conversation_id)
 
-        if not snapshot.exists:
+        if conversation is None:
             raise HTTPException(
                 status_code=404,
                 detail="해당 대화를 찾을 수 없습니다.",
             )
 
-        conversation = snapshot.to_dict()
         messages = conversation.get("messages", [])
         title = conversation.get("title", request.message[:60])
         created_at = conversation.get("created_at", now)
     else:
-        doc_ref = collection.document(str(uuid4()))
+        conversation_id = str(uuid4())
         messages = []
         title = request.message[:60]
         created_at = now
 
-    # 기존 데이터 요약을 AI의 시스템 프롬프트에 주입한다.
-    # 기존 데이터 요약을 AI에게 전달할 준비를 한다.
     summary = get_summary(symbol="005930")
 
     system_prompt = (
-        "너는 주식 시계열 데이터를 설명하는 교육용 AI 비서다. "
+       "너는 주식 시계열 데이터를 설명하는 교육용 AI 비서다. "
         "제공된 요약 정보를 바탕으로 한국어로 답변해라. "
-        "데이터가 모의 교육용 데이터라면 실제 시장 가격으로 "
-        "오해하지 않도록 명확히 설명해라. "
+        "현재 분석 대상 회사는 삼성전자이며 종목코드는 005930이다. "
+        "사용하는 CSV 파일명은 data/samsung_2years.csv이다. "
+        "CSV 헤더는 date,symbol,close,data_type이다. "
+        "사용자가 회사명, 종목코드, CSV 파일명 또는 헤더를 물으면 "
+        "위 정보를 정확하게 답변해라. "
+        "제공된 데이터는 CSV에 저장된 과거 주가이며 실시간 가격이 "
+        "아님을 명확히 설명해라. "
         "정보에 없는 사실이나 미래 가격을 확정적으로 주장하지 마라.\n\n"
         f"현재 데이터 요약:\n{json.dumps(summary, ensure_ascii=False)}"
     )
@@ -314,8 +285,11 @@ def chat(request: ChatRequest):
     try:
         client = OpenAI(
             api_key=api_key,
-            base_url=os.getenv("OPENAI_BASE_URL", "https://copa.codyssey.kr/v1"),
-)
+            base_url=os.getenv(
+                "OPENAI_BASE_URL",
+                "https://copa.codyssey.kr/v1",
+            ),
+        )
         response = client.chat.completions.create(
             model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
             messages=api_messages,
@@ -339,33 +313,34 @@ def chat(request: ChatRequest):
         {"role": "assistant", "content": answer},
     ]
 
-    doc_ref.set({
+    conversation = {
+        "id": conversation_id,
         "title": title,
         "messages": updated_messages,
         "created_at": created_at,
         "updated_at": utc_now(),
-    })
+    }
+    conversations[conversation_id] = conversation
 
     return {
-        "conversation_id": doc_ref.id,
+        "conversation_id": conversation_id,
         "user_message": request.message,
         "assistant_message": answer,
         "messages": updated_messages,
         "summary": summary,
     }
 
+
 @app.get("/api/conversations")
 def list_conversations():
-    db = get_db()
-    documents = db.collection("conversations").stream()
-
+    """메모리에 저장된 대화 목록을 반환합니다."""
     items = []
-    for document in documents:
-        data = document.to_dict()
+
+    for conversation_id, data in conversations.items():
         messages = data.get("messages", [])
 
         items.append({
-            "id": document.id,
+            "id": conversation_id,
             "title": data.get("title", "새 대화"),
             "created_at": data.get("created_at"),
             "updated_at": data.get("updated_at"),
@@ -376,37 +351,34 @@ def list_conversations():
         key=lambda item: item.get("updated_at") or "",
         reverse=True,
     )
+
     return {"count": len(items), "items": items}
 
 
 @app.get("/api/conversations/{conversation_id}")
 def get_conversation(conversation_id: str):
-    db = get_db()
-    doc_ref = db.collection("conversations").document(conversation_id)
-    snapshot = doc_ref.get()
+    """메모리에 저장된 대화를 조회합니다."""
+    conversation = conversations.get(conversation_id)
 
-    if not snapshot.exists:
+    if conversation is None:
         raise HTTPException(
             status_code=404,
             detail="해당 대화를 찾을 수 없습니다.",
         )
 
-    return {"id": snapshot.id, **snapshot.to_dict()}
+    return conversation
 
 
 @app.delete("/api/conversations/{conversation_id}")
 def delete_conversation(conversation_id: str):
-    db = get_db()
-    doc_ref = db.collection("conversations").document(conversation_id)
-    snapshot = doc_ref.get()
-
-    if not snapshot.exists:
+    """메모리에 저장된 대화를 삭제합니다."""
+    if conversation_id not in conversations:
         raise HTTPException(
             status_code=404,
             detail="해당 대화를 찾을 수 없습니다.",
         )
 
-    doc_ref.delete()
+    del conversations[conversation_id]
     return {"deleted": True, "id": conversation_id}
 
 
