@@ -3,14 +3,17 @@ import os
 import secrets
 import threading
 from datetime import datetime, timezone
-
-from openai import OpenAI
 from pathlib import Path
 from uuid import uuid4
 
+from dotenv import load_dotenv
+from openai import OpenAI
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
+
 # 로컬 테스트 모드: 대화 기록은 서버 실행 중에만 메모리에 보관합니다.
 conversations: dict[str, dict] = {}
-
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Request
